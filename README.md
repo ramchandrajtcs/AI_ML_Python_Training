@@ -20,7 +20,7 @@ pip install -r requirements.txt
 
 ```bash
 python scripts/generate_sample_image.py
-python ocr.py samples/hello_ocr.png
+python ocr.py samples/hello_ocr.png --psm 6 --deskew --denoise median
 ```
 
 You should see text similar to:
@@ -47,9 +47,13 @@ python ocr.py <image_path> [options]
 Examples:
 
 ```bash
-python ocr.py samples/hello_ocr.png -l eng --psm 6
+python ocr.py samples/hello_ocr.png -l eng --psm 6 --deskew
 python ocr.py image.jpg -o output.txt
+
+### Options summary
+
+- `--deskew`: Auto-rotate to correct skew using Tesseract OSD.
+- `--denoise {median|blur}`: Apply a light denoise filter before thresholding.
 ```
 
 If Tesseract is not on your PATH, set `TESSERACT_CMD` to its binary path.
-

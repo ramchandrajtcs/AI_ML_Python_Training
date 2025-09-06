@@ -65,14 +65,44 @@ def preprocess_image(
     grayscale: bool = True,
     sharpen: bool = True,
     threshold: Optional[int] = None,
+    denoise: Optional[str] = None,
 ) -> Image.Image:
     if grayscale:
         img = ImageOps.grayscale(img)
     if sharpen:
         img = img.filter(ImageFilter.SHARPEN)
+    if denoise:
+        if denoise == "median":
+            img = img.filter(ImageFilter.MedianFilter(size=3))
+        elif denoise == "blur":
+            img = img.filter(ImageFilter.GaussianBlur(radius=0.8))
     if threshold is not None:
         threshold = max(0, min(255, threshold))
         img = img.point(lambda p: 255 if p > threshold else 0)
+    return img
+
+
+def _deskew_with_tesseract(img: Image.Image) -> Image.Image:
+    """Estimate rotation via Tesseract OSD and rotate to deskew.
+
+    Falls back to original image on failure.
+    """
+    try:
+        osd = pytesseract.image_to_osd(img)
+        # OSD output often contains a line like: "Rotate: 90"
+        angle = None
+        for line in osd.splitlines():
+            if "Rotate:" in line:
+                try:
+                    angle = int(line.split(":", 1)[1].strip())
+                except Exception:
+                    pass
+                break
+        if angle is not None and angle % 360 != 0:
+            # Rotate in opposite direction to deskew
+            return img.rotate(-angle, expand=True, fillcolor=255)
+    except Exception:
+        pass
     return img
 
 
@@ -84,10 +114,20 @@ def ocr_image(
     threshold: Optional[int] = None,
     grayscale: bool = True,
     sharpen: bool = True,
+    denoise: Optional[str] = None,
+    deskew: bool = False,
 ) -> str:
     _ensure_tesseract_available()
     img = load_image(image_path)
-    img = preprocess_image(img, grayscale=grayscale, sharpen=sharpen, threshold=threshold)
+    if deskew:
+        img = _deskew_with_tesseract(img)
+    img = preprocess_image(
+        img,
+        grayscale=grayscale,
+        sharpen=sharpen,
+        threshold=threshold,
+        denoise=denoise,
+    )
 
     config_parts = []
     if psm is not None:
@@ -113,6 +153,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Binarization threshold 0-255 (omit for auto/none)",
     )
+    p.add_argument(
+        "--denoise",
+        choices=["median", "blur"],
+        default=None,
+        help="Optional denoise filter before thresholding",
+    )
+    p.add_argument(
+        "--deskew",
+        action="store_true",
+        help="Auto-rotate using Tesseract OSD to correct skew",
+    )
     p.add_argument("-o", "--output", type=Path, default=None, help="Optional output .txt path")
     return p.parse_args(argv)
 
@@ -133,6 +184,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             threshold=args.threshold,
             grayscale=not args.no_grayscale,
             sharpen=not args.no_sharpen,
+            denoise=args.denoise,
+            deskew=args.deskew,
         )
     except Exception as exc:
         print(f"OCR failed: {exc}", file=sys.stderr)
@@ -151,4 +204,3 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-
