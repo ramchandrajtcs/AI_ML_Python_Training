@@ -1,4 +1,6 @@
 # OCR CLI
+# OCR CLI
+[![CI](https://github.com/ramchandrajtcs/AI_ML_Python_Training/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ramchandrajtcs/AI_ML_Python_Training/actions/workflows/ci.yml)
 
 Extract text from images using Tesseract OCR via a simple Python script.
 
